@@ -359,6 +359,9 @@ if (KNP_BUILD_TESTS)
                         "INSTALL_GTEST OFF")
 endif()
 
+# Отключение конкретного предупреждения для всех таргетов
+add_compile_options(-Wno-maybe-uninitialized)
+
 #if (CPM_SOURCE_CACHE)
 #    file(GLOB THIRD_PARTY_INCLUDES LIST_DIRECTORIES true "${CPM_SOURCE_CACHE}/**/include")
 #    include_directories("${CPM_SOURCE_CACHE}" ${THIRD_PARTY_INCLUDES})
