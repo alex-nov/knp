@@ -22,7 +22,11 @@
 #pragma once
 
 #include <cuda_runtime.h>
+#include <spdlog/spdlog.h>
+
 #include <utility>
+
+#include "safe_call.cuh"
 
 
 /**
@@ -31,7 +35,7 @@
 namespace knp::backends::gpu::cuda::device_lib
 {
 
-template<typename T>
+template <typename T>
 struct CuMallocAllocator
 {
     using value_type = T;
@@ -47,9 +51,18 @@ struct CuMallocAllocator
      */
     __host__ __device__ T* allocate(size_t n, const void* hint)
     {
-        T *data = nullptr;
+        T* data = nullptr;
         if (n > 0)
         {
+            size_t current_heap_size;
+            cudaError_t err = cudaDeviceGetLimit(&current_heap_size, cudaLimitMallocHeapSize);
+#ifndef __CUDA_ARCH__
+            SPDLOG_DEBUG("allocate: allocating {}", n * sizeof(T));
+#else
+#    ifdef DEBUG
+            printf("allocate dev: allocating %lu structures of size %lu\n", n, sizeof(T));
+#    endif
+#endif
             call_and_check(cudaMalloc(&data, n * sizeof(T)));
         }
         return data;

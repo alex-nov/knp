@@ -23,7 +23,8 @@
 #include <knp/framework/monitoring/observer.h>
 #include <knp/framework/network.h>
 #include <knp/framework/sonata/network_io.h>
-#include <knp/framework/visualizer/visualize_network.h>
+#include <knp/framework/visualizer/graph_builder.h>
+#include <knp/framework/visualizer/graph_visualization.h>
 
 #include <iostream>
 
@@ -45,19 +46,24 @@ int main(int argc, char **argv)
     knp::core::UID output_uid;
     // Defines `std::string` object for task types.
     std::string task;
-    // Defines `std::string` objects for path to network and path to a file storing data.
-    std::string path_to_network, path_to_data;
+    // Defines `std::string` objects for paths to network, a file storing data, and backend.
+    std::string path_to_network, path_to_data, backend_type;
     po::options_description options;
-    // Defines options for task types, path to network, and path to a file storing data.
+    // Defines options for task types, paths to network, a file storing data, and backend.
     options.add_options()("help,h", "Produce help message.")(
         "task,t", po::value(&task), "Type of task: show, train, infer.")(
         "net-path,p", po::value(&path_to_network), "File or directory for network storage.")(
-        "data-path,d", po::value(&path_to_data), "File for data storage.");
-    // Stores defines options in a variable map.
+        "data-path,d", po::value(&path_to_data), "File for data storage.")(
+        "backend,b", po::value<std::string>()->default_value("knp-cpu-single-threaded-backend"), "Backend to be used.");
+    // Stores defined options in a variable map.
     po::variables_map options_map;
     po::store(po::parse_command_line(argc, argv, options), options_map);
     po::notify(options_map);
-
+    if (options_map.count("help"))
+    {
+        std::cout << options << std::endl;
+        return EXIT_SUCCESS;
+    }
     // If a path to network is not provided, the function exits.
     if (!options_map.count("net-path"))
     {
@@ -74,26 +80,20 @@ int main(int argc, char **argv)
         // https://click.kaspersky.com/?hl=en-US&version=2.0&pid=KNP&link=online_help&helpid=235801
         // https://click.kaspersky.com/?hl=en-US&version=2.0&pid=KNP&link=online_help&helpid=274991
         knp::framework::Network network = knp::framework::sonata::load_network(network_path);
-        // Constructs a network graph.
-        const knp::framework::NetworkGraph net_graph(network);
-        // Prints descriptions of graph connections.
-        knp::framework::print_network_description(net_graph);
-        // Draws a subgraph in the OpenCV window.
-        // Press `Esc` to exit the OpenCV window.
-        knp::framework::position_network_test(
-            knp::framework::NetworkGraph(network), knp::framework::divide_graph_by_connectivity(net_graph)[0],
-            {1000, 700});
+        // Builds a network graph, prints descriptions of its connections and saves the DOT and the image files.
+        const knp::framework::visualizer::NetworkGraph graph = knp::framework::visualizer::build_graph(network);
+        knp::framework::visualizer::print_network_description(graph);
+        knp::framework::visualizer::write_dot(graph, "visualization_docs/dot_files/graph.dot");
+        knp::framework::visualizer::render_graph(graph, "visualization_docs/png_files/graph.png");
     }
 
     // If `task=infer`, the function loads a network and runs inference.
     if (task == "infer")
     {
-        // Defines path to backend, on which to run a network.
-        std::filesystem::path path_to_backend =
-            std::filesystem::path(argv[0]).parent_path() / "knp-cpu-single-threaded-backend";
         // Runs inference of network on the specified path.
         do_inference(
-            options_map["net-path"].as<std::string>(), options_map["data-path"].as<std::string>(), path_to_backend);
+            options_map["net-path"].as<std::string>(), options_map["data-path"].as<std::string>(),
+	    options_map["backend"].as<std::string>());
     }
 
     return EXIT_SUCCESS;

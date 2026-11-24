@@ -50,7 +50,7 @@ namespace knp::backends::cpu::projections
  * @param step_n current simulation step number.
  *
  * @details First, the function unloads all spike messages addressed to the projection from
- * the message endpoint. Then the function processes the unloaded spike messages together with 
+ * the message endpoint. Then the function processes the unloaded spike messages together with
  * any pending @p future_messages and returns an iterator to the first impact message that should be
  *  sent immediately. If such a message exists, the function sends it via the message endpoint
  *  and removes it from @p future_messages.
@@ -63,15 +63,6 @@ void calculate_projection(
     SPDLOG_DEBUG("Calculating synapse projection at step {}.", step_n);
 
     auto messages = endpoint.unload_messages<core::messaging::SpikeMessage>(projection.get_uid());
-
-#if (SPDLOG_ACTIVE_LEVEL <= SPDLOG_LEVEL_TRACE)
-    for (const auto &message : messages)
-    {
-        SPDLOG_TRACE(
-            "Spike from {} with spiked neurons: {}", std::string(message.header_.sender_uid_),
-            fmt::join(message.neuron_indexes_, ", "));
-    }
-#endif
 
     auto out_iter = impl::calculate_projection_dispatch(projection, messages, future_messages, step_n);
     if (out_iter != future_messages.end())

@@ -26,8 +26,9 @@
 #include "network_functions.h"
 
 
-// Replace WTA mechanisms with direct projection connections as the AltAI neuron model does not natively support WTA operations.
-static void replace_wta_with_projections(AnnotatedNetwork& network)
+// Replace WTA mechanisms with direct projection connections as the AltAI neuron model does not natively support WTA
+// operations.
+void replace_wta_with_projections(AnnotatedNetwork& network)
 {
     for (const auto& wta_data : network.data_.wta_data_)
     {
@@ -55,7 +56,19 @@ static void replace_wta_with_projections(AnnotatedNetwork& network)
 }
 
 
-// Quantize network weights and thresholds to integer range [-255, 255].
+/**
+ * @brief Quantize the network by scaling weights and neuron thresholds to the range [-255, 255].
+ *
+ * @details This function is required for the AltAI neuron model because it operates with fixed-point arithmetic. 
+ * All synaptic weights and neuron activation thresholds are scaled proportionally so that the largest absolute 
+ * value (whether weight or threshold) maps to 255. The scaling preserves the relative magnitude of parameters 
+ * while fitting them into the integer range expected by the AltAI implementation.
+ *
+ * @note The quantization step is performed after the network has been reconstructed for inference (i.e., after 
+ * `replace_wta_with_projections` has been applied).
+ *
+ * @param network annotated network.
+ */
 static void quantize_network(AnnotatedNetwork& network)
 {
     for (auto proj = network.network_.begin_projections(); proj != network.network_.end_projections(); ++proj)
@@ -81,7 +94,7 @@ static void quantize_network(AnnotatedNetwork& network)
                         std::max<uint16_t>(max_threshold, neuron.activation_threshold_ + neuron.additional_threshold_);
 
                 const float total_max =
-                    std::max({std::abs(max_weight), std::abs(min_weight), std::abs<float>(max_threshold)});
+                    std::max({std::abs(max_weight), std::abs(min_weight), std::abs(static_cast<float>(max_threshold))});
                 const float scale = 255.f / total_max;
 
                 for (auto& synapse : proj)

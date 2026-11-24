@@ -80,6 +80,25 @@ struct AnnotatedNetwork
         std::vector<std::pair<std::vector<knp::core::UID>, std::vector<knp::core::UID>>> wta_data_;
 
         /**
+         * @brief WTA handlers: UID of a handler and UIDs of its senders. Filled when the handlers are added, because
+         * `wta_data_` is cleared when the network is prepared for inference.
+         */
+        // cppcheck-suppress unusedStructMember
+        std::vector<std::pair<knp::core::UID, std::vector<knp::core::UID>>> wta_handlers_;
+
+        /**
+         * @brief UIDs and names of input channels. They are created locally and are not stored anywhere else.
+         */
+        // cppcheck-suppress unusedStructMember
+        std::vector<std::pair<knp::core::UID, std::string>> input_channel_uids_;
+
+        /**
+         * @brief UIDs and names of output channels. They are created locally and are not stored anywhere else.
+         */
+        // cppcheck-suppress unusedStructMember
+        std::vector<std::pair<knp::core::UID, std::string>> output_channel_uids_;
+
+        /**
          * @brief WTA border indices defining competition boundaries (for example, [2,4,6]).
          */
         // cppcheck-suppress unusedStructMember

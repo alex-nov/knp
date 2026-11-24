@@ -74,16 +74,20 @@ if (KNP_BUILD_CUDA)
     target_link_libraries("${PROJECT_NAME}" PRIVATE knp-gpu-cuda-backend_static CUDA::cudart)  # KNP::Backends::CUDA
 endif()
 
-find_package(OpenCV REQUIRED)
-
 # Highfive is really used in tester.
-target_link_libraries("${PROJECT_NAME}" PRIVATE gtest gtest_main spdlog::spdlog_header_only HighFive ${OpenCV_LIBS})
+target_link_libraries("${PROJECT_NAME}" PRIVATE gtest gtest_main spdlog::spdlog_header_only HighFive)
 
 add_dependencies("${PROJECT_NAME}" knp-base-framework-core_static)
 
 if (${BUILD_GMOCK})
     target_link_libraries("${PROJECT_NAME}" PRIVATE gmock gmock_main)
 endif()
+
+if (WIN32)
+    # Graphviz is not on PATH on Windows.
+    add_custom_command(TARGET knp-tester POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${GRAPHVIZ_BIN_DIR}" "$<TARGET_FILE_DIR:knp-tester>" VERBATIM)
+endif ()
 
 gtest_discover_tests("${PROJECT_NAME}"
     # Set a working directory to find test data via paths relative to the project root.

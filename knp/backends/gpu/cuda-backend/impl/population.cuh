@@ -24,9 +24,9 @@
 #include <knp/core/population.h>
 #include <knp/neuron-traits/all_traits.h>
 
+#include "cuda_bus/messaging.cuh"
 #include "cuda_lib/vector.cuh"
 #include "uid.cuh"
-#include "cuda_bus/messaging.cuh"
 
 
 /**
@@ -34,7 +34,6 @@
  */
 namespace knp::backends::gpu::cuda
 {
-
 /**
  * @brief The CUDAPopulation class is a definition of a CUDA neurons population.
  */
@@ -56,28 +55,54 @@ struct CUDAPopulation
 
     CUDAPopulation() = default;
 
-//#if !defined(__CUDA_ARCH__)
+    //#if !defined(__CUDA_ARCH__)
     /**
      * @brief Constructor.
      * @param population source population.
      */
     __host__ explicit CUDAPopulation(const knp::core::Population<NeuronType> &population)
-        : uid_{to_gpu_uid(population.get_uid())},
+        : uid_{population.get_uid()},
+          tags_{population.get_tags()},
           neurons_{population.get_neurons_parameters()}
     {
     }
-//#endif
+    //#endif
 
     __host__ __device__ void actualize() { neurons_.actualize(); }
 
     /**
      * @brief UID.
      */
-    cuda::UID uid_;
+    knp::core::UID uid_;
     /**
-     * @brief Neurons.
+     * @brief Neurons container.
      */
     cuda::device_lib::CUDAVector<NeuronParameters> neurons_;
+
+    /**
+     * @brief Tag map, containing descriptions and qualifiers.
+     */
+    knp::core::TagMap tags_;
 };
 
-} // namespace knp::backends::gpu::cuda
+
+/**
+ * @brief Unload the population from GPU back to the core class.
+ * @tparam Neuron neuron type.
+ * @param cuda_population population to be unloaded.
+ * @return core population.
+ */
+template <class Neuron>
+knp::core::Population<Neuron> convert_to_core_population(const CUDAPopulation<Neuron> &cuda_population)
+{
+    const auto neurons = cuda_population.neurons_.to_std();
+    auto generator = [&neurons](size_t i) -> std::optional<typename core::Population<Neuron>::NeuronParameters>
+    {
+        if (i >= neurons.size()) return {};
+        return neurons[i];
+    };
+    knp::core::Population<Neuron> result{cuda_population.uid_, generator, neurons.size()};
+    return result;
+}
+
+}  // namespace knp::backends::gpu::cuda

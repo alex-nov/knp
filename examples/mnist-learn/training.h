@@ -25,11 +25,12 @@
 #include <knp/framework/monitoring/model.h>
 #include <knp/framework/projection/wta.h>
 #include <knp/framework/tags/name.h>
+#include <knp/framework/visualizer/graph_builder.h>
 
-#include <map>
-#include <memory>
 #include <filesystem>
 #include <fstream>
+#include <map>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -57,12 +58,20 @@
  */
 template <typename Neuron>
 knp::framework::ModelLoader::InputChannelMap build_channel_map_train(
-    const AnnotatedNetwork& network, knp::framework::Model& model, const Dataset& dataset)
+    AnnotatedNetwork& network, knp::framework::Model& model, const Dataset& dataset)
 {
     // Create random unique identifiers for input and output channels.
     knp::core::UID input_image_channel_raster;
     knp::core::UID input_image_channel_classes;
     knp::core::UID output_channel;
+
+    // Store the generated channel UIDs together with human-readable names.
+    // These identifiers exist only locally. They are not persisted in the message
+    // bus, so we simply reuse the variable name as the channel name.
+    network.data_.input_channel_uids_ = {
+        {input_image_channel_raster, "input_image_channel_raster"},
+        {input_image_channel_classes, "input_image_channel_classes"}};
+    network.data_.output_channel_uids_ = {{output_channel, "output_channel"}};
 
     // Connect rasterized image projections to input channel for image data.
     for (auto image_proj_uid : network.data_.projections_from_raster_)
@@ -136,6 +145,13 @@ void train_network(
     // Online Help link: https://click.kaspersky.com/?hl=en-US&version=2.0&pid=KNP&link=online_help&helpid=301132
     std::vector<knp::core::UID> wta_uids = knp::framework::projection::add_wta_handlers(
         model_executor, wta_winners_amount, network.data_.wta_borders_, network.data_.wta_data_);
+
+    // Associate each WTA handler UID with the list of its sender UIDs.
+    // Handlers are owned by the `ModelExecutor` and are destroyed together with it;
+    // the annotation's `wta_data_` vector is cleared when the network is prepared
+    // for inference. Exactly one handler is created for every entry in `wta_data_`.
+    for (size_t i = 0; i < wta_uids.size(); ++i)
+        network.data_.wta_handlers_.emplace_back(wta_uids[i], network.data_.wta_data_[i].first);
     
     // Register WTA populations for logging to track competitive behavior.
     for (auto const& uid : wta_uids) pop_names[uid] = "WTA";
@@ -190,18 +206,25 @@ void train_network(
  * @param dataset dataset containing training data and timing specifications.
  * @param network annotated network structure containing the network and its annotations.
  * @param backend_loader backend loader for loading the training backend.
+ *
+ * @return set of bus connections extracted from the training backend's message endpoint.
  */
 template <typename Neuron>
-void train_model(
+knp::framework::visualizer::BusConnections train_model(
     const ModelDescription& model_desc, const Dataset& dataset, AnnotatedNetwork& network,
     knp::framework::BackendLoader& backend_loader)
 {
     // Load training backend for computational execution.
-    std::shared_ptr<knp::core::Backend> training_backend = backend_loader.load(model_desc.training_backend_path_);
+    std::shared_ptr<knp::core::Backend> training_backend = backend_loader.load(model_desc.training_backend_name_);
 
     // Execute the complete training process with the loaded backend.
     train_network<Neuron>(training_backend, network, model_desc, dataset);
 
     // Prepare the trained network for inference operations.
     prepare_network_for_inference<Neuron>(training_backend, model_desc, network);
+
+    // Copy the backend's subscription information before the backend object is
+    // destroyed; the copied data is later used for visualizing dynamic graph
+    // connections.
+    return knp::framework::visualizer::get_bus_connections(training_backend->get_message_endpoint());
 }

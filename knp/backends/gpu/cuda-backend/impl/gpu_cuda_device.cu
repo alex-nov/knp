@@ -21,9 +21,8 @@
 
 #include <knp/devices/gpu_cuda.h>
 
-#include <spdlog/spdlog.h>
-
 #include <nvml.h>
+#include <spdlog/spdlog.h>
 
 #include <exception>
 
@@ -36,26 +35,21 @@ CUDA::CUDA(uint32_t gpu_num) : gpu_num_(gpu_num)
     if (const auto e_code = cudaGetDeviceProperties(&properties_, gpu_num_); e_code != cudaSuccess)
     {
         const auto err_msg = std::string("CUDA error during get device properties") + cudaGetErrorString(e_code);
-        SPDLOG_ERROR("{} [{}]", err_msg.c_str(), e_code);
+        SPDLOG_ERROR("{} [{}]", err_msg.c_str(), static_cast<int>(e_code));
         throw std::runtime_error(err_msg);
     }
 
     static_assert(sizeof(boost::uuids::uuid) == sizeof(cudaUUID_t));
-    std::copy_n(reinterpret_cast<const char*>(&properties_.uuid),
-                Device::base_.uid_.tag.size(), Device::base_.uid_.tag.begin());
+    std::copy_n(
+        reinterpret_cast<const char*>(&properties_.uuid), Device::base_.uid_.tag.size(),
+        Device::base_.uid_.tag.begin());
 }
 
 
-CUDA::CUDA(CUDA&& other)
-    : gpu_num_{std::move(other.gpu_num_)},
-      properties_{std::move(other.properties_)}
-{
-}
+CUDA::CUDA(CUDA&& other) : gpu_num_{std::move(other.gpu_num_)}, properties_{std::move(other.properties_)} {}
 
 
-CUDA::~CUDA()
-{
-}
+CUDA::~CUDA() {}
 
 
 CUDA& CUDA::operator=(CUDA&& other) noexcept
@@ -104,8 +98,8 @@ float CUDA::get_power() const
         nvmlEnableState_t mode;
         if (auto e_code = nvmlDeviceGetPowerManagementMode(device_handle, &mode); e_code != NVML_SUCCESS)
         {
-            throw std::runtime_error(std::string("Device power management mode getting error: ") +
-                                     std::to_string(e_code));
+            throw std::runtime_error(
+                std::string("Device power management mode getting error: ") + std::to_string(e_code));
         }
 
         unsigned int power_usage;
@@ -116,21 +110,21 @@ float CUDA::get_power() const
 
         if (auto e_code = nvmlShutdown(); e_code != NVML_SUCCESS)
         {
-            SPDLOG_WARN("NVML shutdown failed: {}", e_code);
+            SPDLOG_WARN("NVML shutdown failed: {}", static_cast<int>(e_code));
         }
 
         return power_usage;
     }
-    catch(const std::runtime_error &e)
+    catch (const std::runtime_error& e)
     {
         SPDLOG_ERROR("{}", e.what());
         if (auto e_code = nvmlShutdown(); e_code != NVML_SUCCESS)
         {
-            SPDLOG_WARN("NVML shutdown failed: {}", e_code);
+            SPDLOG_WARN("NVML shutdown failed: {}", static_cast<int>(e_code));
         }
         throw;
     }
-    catch(...)
+    catch (...)
     {
         throw;
     }
@@ -198,7 +192,7 @@ KNP_DECLSPEC std::vector<CUDA> list_cuda_processors()
     if (auto e_code = cudaGetDeviceCount(&device_count); e_code != cudaSuccess)
     {
         const auto err_msg = std::string("CUDA error during get device properties") + cudaGetErrorString(e_code);
-        SPDLOG_ERROR("{} [{}]", err_msg.c_str(), e_code);
+        SPDLOG_ERROR("{} [{}]", err_msg.c_str(), static_cast<int>(e_code));
         throw std::runtime_error(err_msg);
     }
 

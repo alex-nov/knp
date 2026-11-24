@@ -131,7 +131,7 @@ std::vector<knp::core::messaging::SpikeMessage> infer_network(
             // Write CSV header for raw spike data.
             raw_spikes_stream << "send_time,sender_name,sender_uid,neuron_index" << std::endl;
 
-            // Collect all sender UIDs for observer registration.
+            // Get all sender UIDs for observer registration.
             std::vector<knp::core::UID> all_senders_uids(pop_names.size());
             std::transform(
                 pop_names.begin(), pop_names.end(), all_senders_uids.begin(),
@@ -210,6 +210,6 @@ std::vector<knp::core::messaging::SpikeMessage> infer_model(
     const ModelDescription& model_desc, const Dataset& dataset, AnnotatedNetwork& network,
     knp::framework::BackendLoader& backend_loader)
 {
-    std::shared_ptr<knp::core::Backend> inference_backend = backend_loader.load(model_desc.inference_backend_path_);
+    std::shared_ptr<knp::core::Backend> inference_backend = backend_loader.load_by_name(model_desc.inference_backend_name_);
     return infer_network<Neuron>(inference_backend, network, model_desc, dataset);
 }

@@ -22,14 +22,16 @@
 #pragma once
 
 #include <knp/core/messaging/message_envelope.h>
-#include <boost/mp11.hpp>
+
 #include <cuda/std/variant>
 
+#include <boost/mp11.hpp>
+
+#include "../cuda_lib/extraction.cuh"
+#include "../cuda_lib/safe_call.cuh"
 #include "message_header.cuh"
 #include "spike_message.cuh"
 #include "synaptic_impact_message.cuh"
-#include "../cuda_lib/extraction.cuh"
-#include "../cuda_lib/safe_call.cuh"
 
 
 /**
@@ -45,16 +47,21 @@ using MessageVariant = boost::mp11::mp_rename<AllCudaMessages, ::cuda::std::vari
 
 __global__ void get_message_kernel(const MessageVariant *var, int *type, const void **msg);
 
-template<class MessageType>
-__host__ __device__ constexpr auto get_msg_index() { return boost::mp11::mp_find<MessageVariant, MessageType>(); }
+template <class MessageType>
+__host__ __device__ constexpr auto get_msg_index()
+{
+    return boost::mp11::mp_find<MessageVariant, MessageType>();
+}
 
-template <>
-MessageVariant gpu_extract<MessageVariant>(const MessageVariant *message);
 
-template <>
-void gpu_insert<MessageVariant>(const MessageVariant &cpu_source, MessageVariant *gpu_target);
+//cuda::SynapticImpactMessage make_gpu_message(const knp::core::messaging::SynapticImpactMessage &host_message,
+//                                             device_lib::CUDAVector<SynapticImpact> &impacts_owner);
 
-cuda::MessageVariant make_gpu_message(const knp::core::messaging::MessageVariant &host_message);
+cuda::SpikeMessage make_gpu_message(const knp::core::messaging::SpikeMessage &host_message);
+
+knp::core::messaging::SpikeMessage make_host_message(const cuda::SpikeMessage &cuda_spike_message);
+
+knp::core::messaging::SynapticImpactMessage make_host_message(const cuda::SynapticImpactMessage &cuda_impact_message);
 
 knp::core::messaging::MessageVariant make_host_message(const cuda::MessageVariant &gpu_message);
 

@@ -81,18 +81,18 @@ struct ModelDescription
     std::filesystem::path labels_file_path_;
 
     /**
-     * @brief Path to backend library for training operations.
+     * @brief Name of the backend library for training operations.
      * 
      * @note Platform specific name parts (for example, .so or .dll) should be absent from the path.
      */
-    std::filesystem::path training_backend_path_;
+    std::string training_backend_name_;
 
     /**
      * @brief Path to backend library for inference operations.
      * 
      * @note Platform specific name parts (for example, .so or .dll) should be absent from the path.
      */
-    std::filesystem::path inference_backend_path_;
+    std::string inference_backend_name_;
 
     /**
      * @brief Path to directory where detailed logs will be saved.
@@ -103,6 +103,11 @@ struct ModelDescription
      * @brief Path to directory where trained model will be saved in SONATA format.
      */
     std::filesystem::path model_saving_path_;
+
+    /**
+     * @brief Flag to skip training.
+     */
+    bool inference_only_ = false;
 };
 
 
@@ -114,6 +119,7 @@ struct ModelDescription
  * 
  * @param stream output stream to write the formatted description to.
  * @param desc model description containing configuration parameters.
+ *
  * @return reference to the output stream.
  */
 std::ostream& operator<<(std::ostream& stream, ModelDescription const& desc);

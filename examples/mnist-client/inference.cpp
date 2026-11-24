@@ -92,7 +92,7 @@ auto make_observer_function(std::vector<InferenceResult> &result)
 
 
 // Read image dataset from a binary file and trasnform it into a vector of boolean frames.
-std::vector<std::vector<bool>> read_spike_frames(const std::string &path_to_data)
+std::vector<std::vector<bool>> read_spike_frames(const std::filesystem::path &path_to_data)
 {
     // Image-to-spikes conversion parameters.
     constexpr int intensity_levels = 10;
@@ -107,7 +107,7 @@ std::vector<std::vector<bool>> read_spike_frames(const std::string &path_to_data
 // See function description in `inference.h`.
 std::vector<InferenceResult> do_inference(
     const std::filesystem::path &path_to_model, const std::filesystem::path &path_to_data,
-    const std::filesystem::path &path_to_backend)
+    const std::string &backend_name)
 {
     std::vector<std::pair<knp::core::UID, size_t>> input_uids;
     // Online Help link: https://click.kaspersky.com/?hl=en-US&version=2.0&pid=KNP&link=online_help&helpid=274991
@@ -122,11 +122,19 @@ std::vector<InferenceResult> do_inference(
         population_sizes.insert({uid, size});
     }
 
+    std::unordered_map<knp::core::UID, size_t, knp::core::uid_hash> projection_sizes;
+    for (const auto &proj : network.get_projections())
+    {
+        knp::core::UID uid = std::visit([](const auto &p) { return p.get_uid(); }, proj);
+        size_t size = std::visit([](const auto &p) { return p.size(); }, proj);
+        projection_sizes.insert({uid, size});
+    }
+
     // Online Help link: https://click.kaspersky.com/?hl=en-US&version=2.0&pid=KNP&link=online_help&helpid=235849
     knp::framework::Model model(std::move(network));
 
     // The largest projection is the input image projection. These are numbers for a specific MNIST model.
-    constexpr size_t img_input_size = 117600;
+    static constexpr size_t img_input_size = 117600;
     auto is_input = [](const knp::core::AllProjectionsVariant &proj)
     { return std::visit([](const auto &p) { return p.size(); }, proj) == img_input_size; };
 
@@ -149,7 +157,7 @@ std::vector<InferenceResult> do_inference(
     // Online Help link: https://click.kaspersky.com/?hl=en-US&version=2.0&pid=KNP&link=online_help&helpid=243548
     knp::framework::BackendLoader backend_loader;
     // Online Help link: https://click.kaspersky.com/?hl=en-US&version=2.0&pid=KNP&link=online_help&helpid=251296
-    knp::framework::ModelExecutor model_executor(model, backend_loader.load(path_to_backend), std::move(channel_map));
+    knp::framework::ModelExecutor model_executor(model, backend_loader.load_by_name(backend_name), std::move(channel_map));
     std::vector<InferenceResult> result;
 
     // Find output populations.

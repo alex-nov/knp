@@ -1,4 +1,4 @@
-# KNP SDK image Dockerfile.
+# Dockerfile for the platform SDK image.
 #
 # © 2024-2026 AO Kaspersky Lab
 #
@@ -16,9 +16,20 @@
 
 ARG KNP_IMAGE_VERSION=2.0.0
 ARG KNP_VERSION=2.0.0
+ARG ALTAI_PACKAGE_VERSION=1.0.3
+ARG ALTAI_BACKEND_URL
 ARG TARGETPLATFORM
 
 FROM kasperskydh/knp-base-image:${KNP_IMAGE_VERSION}
+
+# Without it, arguments will not be visible.
+ARG KNP_IMAGE_VERSION
+ARG KNP_VERSION
+ARG ALTAI_PACKAGE_VERSION
+ARG ALTAI_BACKEND_URL
+ARG TARGETPLATFORM
+
+ENV KNP_VERSION=${KNP_VERSION}
 
 WORKDIR /knp
 
@@ -41,10 +52,16 @@ RUN \
 COPY NOTICE.txt .
 COPY *.deb /knp/
 
+RUN wget \
+  ${ALTAI_BACKEND_URL}/${ALTAI_PACKAGE_VERSION}/knp-altai-backend_${ALTAI_PACKAGE_VERSION}_release_${TARGETPLATFORM}.deb \
+  ${ALTAI_BACKEND_URL}/${ALTAI_PACKAGE_VERSION}/knp-altai-backend-dev_${ALTAI_PACKAGE_VERSION}_release_${TARGETPLATFORM}.deb
+
 RUN DEBIAN_FRONTEND=noninteractive dpkg -i \
-  /knp/knp-cpp-framework_2.0.0_amd64.deb /knp/knp-cpp-framework-dev_2.0.0_amd64.deb \
-  /knp/knp-documentation_2.0.0_all.deb knp-examples_2.0.0_amd64.deb \
-  /knp/knp-cpu-single-threaded-backend_2.0.0_amd64.deb /knp/knp-cpu-single-threaded-backend-dev_2.0.0_amd64.deb \
-  /knp/knp-cpu-multi-threaded-backend_2.0.0_amd64.deb /knp/knp-cpu-multi-threaded-backend-dev_2.0.0_amd64.deb \
-  /knp/knp-examples_2.0.0_amd64.deb \
-  /knp/knp-python3-framework_2.0.0_amd64.deb
+  /knp/knp-cpp-framework_${KNP_VERSION}_${TARGETPLATFORM}.deb /knp/knp-cpp-framework-dev_${KNP_VERSION}_${TARGETPLATFORM}.deb \
+  /knp/knp-documentation_${KNP_VERSION}_all.deb knp-examples_${KNP_VERSION}_${TARGETPLATFORM}.deb \
+  /knp/knp-cpu-single-threaded-backend_${KNP_VERSION}_${TARGETPLATFORM}.deb /knp/knp-cpu-single-threaded-backend-dev_${KNP_VERSION}_${TARGETPLATFORM}.deb \
+  /knp/knp-cpu-multi-threaded-backend_${KNP_VERSION}_${TARGETPLATFORM}.deb /knp/knp-cpu-multi-threaded-backend-dev_${KNP_VERSION}_${TARGETPLATFORM}.deb \
+  /knp/knp-examples_${KNP_VERSION}_${TARGETPLATFORM}.deb \
+  /knp/knp-python3-framework_${KNP_VERSION}_${TARGETPLATFORM}.deb \
+  /knp/knp-altai-backend_${ALTAI_PACKAGE_VERSION}_release_${TARGETPLATFORM}.deb \
+  /knp/knp-altai-backend-dev_${ALTAI_PACKAGE_VERSION}_release_${TARGETPLATFORM}.deb

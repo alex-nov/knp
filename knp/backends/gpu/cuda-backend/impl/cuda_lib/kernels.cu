@@ -19,19 +19,18 @@
  * limitations under the License.
  */
 
-#include "kernels.cuh"
-
 #include <cuda_runtime.h>
 #include <thrust/equal.h>
 #include <thrust/execution_policy.h>
 
 #include <utility>
 
-#include "printf.cuh"
-#include "vector.cuh"
-#include "safe_call.cuh"
-#include "cu_alloc.cuh"
 #include "../uid.cuh"
+#include "cu_alloc.cuh"
+#include "kernels.cuh"
+#include "printf.cuh"
+#include "safe_call.cuh"
+#include "vector.cuh"
 
 
 /**
@@ -42,7 +41,7 @@ namespace knp::backends::gpu::cuda::device_lib
 
 __global__ void has_sender_kernel(UID uid, const UID *senders, size_t num_senders, int *result)
 {
-    uint64_t index = threadIdx.x + blockIdx.x * blockDim.x;
+    const LongIndex index = threadIdx.x + blockIdx.x * blockDim.x;
     if (index >= num_senders) return;
     if (senders[index] != uid) return;
     PRINTF_TRACE("Uids are equal\n");

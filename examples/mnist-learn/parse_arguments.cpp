@@ -40,14 +40,17 @@ std::optional<ModelDescription> parse_arguments(int argc, char** argv)
         "inference_iters,i", po::value<size_t>()->default_value(10000), "number of images for inference")(
         "images", po::value<std::string>()->default_value("MNIST.bin"), "path to raw images file")(
         "labels", po::value<std::string>()->default_value("MNIST.target"), "path to images labels file")(
+        "log_path", po::value<std::string>()->default_value(""),
+                "path for saving logs (if empty, no logs are saved)")(
+        "inference_only", "skip training and use `model_path` to load a pre-trained model")(
         "training_backend", po::value<std::string>()->default_value("knp-cpu-single-threaded-backend"),
-        "path to backend used for training")(
+                "path to backend used for training")(
         "inference_backend", po::value<std::string>(),
-        "path to backend for inference (if not provided, training_backend is used)")(
+                "path to backend for inference (if empty, `training_backend` is used)")(
         "extensive_logs_path", po::value<std::string>()->default_value(""),
-        "path for storing extensive logs (if not specified, no extensive logs will be produced)")(
+                "path for storing extensive logs (if empty, no extensive logs are produced)")(
         "model_path", po::value<std::string>()->default_value(""),
-        "path for saving trained model (if not specified, model will not be saved)")(
+                "path for saving trained model (if empty, model is not saved)")(
         "logging_level,l", po::value<std::string>()->default_value("info"),
         "logging level: trace, debug, info, warn, error, critical, or none");
 
@@ -134,7 +137,7 @@ std::optional<ModelDescription> parse_arguments(int argc, char** argv)
 
     if (vm.count("training_backend"))
     {
-        model_desc.training_backend_path_ = vm["training_backend"].as<std::string>();
+        model_desc.training_backend_name_ = vm["training_backend"].as<std::string>();
     }
     else
     {
@@ -143,13 +146,13 @@ std::optional<ModelDescription> parse_arguments(int argc, char** argv)
         return std::nullopt;
     }
 
-    if (vm.count("inference_backend"))
+    if (!vm.count("inference_backend") || vm["inference_backend"].as<std::string>().empty())
     {
-        model_desc.inference_backend_path_ = vm["inference_backend"].as<std::string>();
+        model_desc.inference_backend_name_ = model_desc.training_backend_name_;
     }
     else
     {
-        model_desc.inference_backend_path_ = model_desc.training_backend_path_;
+        model_desc.inference_backend_name_ = vm["inference_backend"].as<std::string>();
     }
 
     if (vm.count("extensive_logs_path"))
@@ -169,6 +172,8 @@ std::optional<ModelDescription> parse_arguments(int argc, char** argv)
     {
         model_desc.model_saving_path_ = "";
     }
+
+    model_desc.inference_only_ = vm.count("inference_only") > 0;
 
     if (vm.count("logging_level"))
     {

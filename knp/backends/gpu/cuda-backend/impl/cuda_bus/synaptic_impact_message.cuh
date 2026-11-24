@@ -27,6 +27,7 @@
 #include <limits>
 #include <map>
 #include <unordered_map>
+
 #include "../cuda_lib/vector.cuh"
 #include "../uid.cuh"
 #include "message_header.cuh"
@@ -46,9 +47,9 @@ class SynapticImpact
 {
 public:
     /**
-     * @brief Index of the population synapse.
+     * @brief Index of the projection synapse.
      */
-    uint64_t connection_index_;
+    device_lib::LongIndex connection_index_;
 
     /**
      * @brief Value used to change neuron membrane potential.
@@ -76,15 +77,12 @@ public:
      */
     __host__ __device__ bool operator==(const SynapticImpact &other) const
     {
-        return connection_index_ == other.connection_index_ && impact_value_ == other.impact_value_
-                && synapse_type_ == other.synapse_type_ && presynaptic_neuron_index_ == other.presynaptic_neuron_index_
-                && postsynaptic_neuron_index_ == other.postsynaptic_neuron_index_;
+        return connection_index_ == other.connection_index_ && impact_value_ == other.impact_value_ &&
+               synapse_type_ == other.synapse_type_ && presynaptic_neuron_index_ == other.presynaptic_neuron_index_ &&
+               postsynaptic_neuron_index_ == other.postsynaptic_neuron_index_;
     }
 
-    __host__ __device__ bool operator!=(const SynapticImpact &other) const
-    {
-        return !(*this == other);
-    }
+    __host__ __device__ bool operator!=(const SynapticImpact &other) const { return !(*this == other); }
 };
 
 
@@ -102,17 +100,17 @@ public:
     /**
      * @brief UID of the population that sends spikes to the projection.
      */
-    cuda::UID presynaptic_population_uid_;
+    core::UID presynaptic_population_uid_;
 
     /**
      * @brief UID of the population that receives impacts from the projection.
      */
-    cuda::UID postsynaptic_population_uid_;
+    core::UID postsynaptic_population_uid_;
 
     /**
      * @brief Synaptic impacts.
      */
-    device_lib::CUDAVector<SynapticImpact> impacts_;
+    device_lib::CUDAVectorMutableView<SynapticImpact> impacts_; // TODO: Change this to CUDAVectorView.
 
     /**
      * @brief Boolean value that defines whether the signal is from a projection without plasticity.
@@ -121,18 +119,14 @@ public:
      */
     bool is_forcing_ = false;
 
-    __host__ __device__ void actualize() { impacts_.actualize(); }
-
-
-    __host__ __device__ bool operator==(const SynapticImpactMessage &other)
+    __host__ bool operator==(const SynapticImpactMessage &other)
     {
-        return header_ == other.header_
-            && presynaptic_population_uid_ == other.presynaptic_population_uid_
-            && postsynaptic_population_uid_ == other.postsynaptic_population_uid_
-            && impacts_ == other.impacts_;
+        return header_ == other.header_ && presynaptic_population_uid_ == other.presynaptic_population_uid_ &&
+               postsynaptic_population_uid_ == other.postsynaptic_population_uid_
+               && impacts_.size_ == other.impacts_.size_ && impacts_.data_ == other.impacts_.data_;
     }
 
-    __host__ __device__ bool operator!=(const SynapticImpactMessage &other) { return !(*this == other); }
+    __host__ bool operator!=(const SynapticImpactMessage &other) { return !(*this == other); }
 };
 
 
@@ -149,21 +143,23 @@ namespace detail
 {
 inline __host__ __device__ cuda::SynapticImpact make_gpu_impact(const knp::core::messaging::SynapticImpact &host_impact)
 {
-    return {.connection_index_ = host_impact.connection_index_,
-            .impact_value_ = host_impact.impact_value_,
-            .synapse_type_ = host_impact.synapse_type_,
-            .presynaptic_neuron_index_ = host_impact.presynaptic_neuron_index_,
-            .postsynaptic_neuron_index_ = host_impact.postsynaptic_neuron_index_ };
+    return {
+        .connection_index_ = host_impact.connection_index_,
+        .impact_value_ = host_impact.impact_value_,
+        .synapse_type_ = host_impact.synapse_type_,
+        .presynaptic_neuron_index_ = host_impact.presynaptic_neuron_index_,
+        .postsynaptic_neuron_index_ = host_impact.postsynaptic_neuron_index_};
 }
 
-inline __host__ __device__  knp::core::messaging::SynapticImpact make_host_impact(
-        const cuda::SynapticImpact &device_impact)
+inline __host__ __device__ knp::core::messaging::SynapticImpact make_host_impact(
+    const cuda::SynapticImpact &device_impact)
 {
-    return {.connection_index_ = device_impact.connection_index_,
-            .impact_value_ = device_impact.impact_value_,
-            .synapse_type_ = device_impact.synapse_type_,
-            .presynaptic_neuron_index_ = device_impact.presynaptic_neuron_index_,
-            .postsynaptic_neuron_index_ = device_impact.postsynaptic_neuron_index_ };
+    return {
+        .connection_index_ = device_impact.connection_index_,
+        .impact_value_ = device_impact.impact_value_,
+        .synapse_type_ = device_impact.synapse_type_,
+        .presynaptic_neuron_index_ = device_impact.presynaptic_neuron_index_,
+        .postsynaptic_neuron_index_ = device_impact.postsynaptic_neuron_index_};
 }
 
 

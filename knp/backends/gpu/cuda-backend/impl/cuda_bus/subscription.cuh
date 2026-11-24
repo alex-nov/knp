@@ -21,24 +21,26 @@
 
 #pragma once
 
-#include <boost/mp11.hpp>
-#include <cuda/std/iterator>
-#include <spdlog/spdlog.h>
-#include <thrust/logical.h>
-#include <thrust/execution_policy.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
-
-#include <algorithm>
-#include <vector>
 #include <knp/core/message_endpoint.h>
 
-#include "../cuda_lib/printf.cuh"
-#include "../cuda_lib/vector.cuh"
-#include "../cuda_lib/safe_call.cuh"
-#include "../cuda_lib/kernels.cuh"
+#include <spdlog/spdlog.h>
+#include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/host_vector.h>
+#include <thrust/logical.h>
+
+#include <algorithm>
+#include <cuda/std/iterator>
+#include <vector>
+
+#include <boost/mp11.hpp>
+
 #include "../cuda_lib/extraction.cuh"
 #include "../cuda_lib/get_blocks_config.cuh"
+#include "../cuda_lib/kernels.cuh"
+#include "../cuda_lib/printf.cuh"
+#include "../cuda_lib/safe_call.cuh"
+#include "../cuda_lib/vector.cuh"
 #include "../uid.cuh"
 #include "messaging.cuh"
 
@@ -55,7 +57,7 @@ public:
     /**
      * @brief Internal container for UIDs.
      */
-    using UidSet = device_lib::CUDAVector<UID>;
+    using UidSet = std::unordered_set<core::UID, core::uid_hash>;
 
 public:
     Subscription() = default;
@@ -65,25 +67,12 @@ public:
      * @param receiver receiver UID.
      * @param senders list of sender UIDs.
      */
-    __host__ Subscription(const cuda::UID &receiver, const std::vector<cuda::UID> &senders, int type_index) :
-            receiver_(receiver), type_index_(type_index)
+    __host__ Subscription(const core::UID &receiver, const std::vector<core::UID> &senders, int type_index)
+        : receiver_(receiver), type_index_(type_index)
     {
         SPDLOG_TRACE("Initializing with {} senders.", senders.size());
         for (size_t i = 0; i < senders.size(); ++i) add_sender(senders[i]);
         SPDLOG_TRACE("Created a subscription with {} senders.", senders_.size());
-    }
-
-    __host__ Subscription(const knp::core::MessageEndpoint::SubscriptionVariant &cpu_subscription);
-
-    __device__ Subscription(const cuda::UID &receiver,
-                            const device_lib::CUDAVector<cuda::UID> &senders,
-                            int type_index) :
-    receiver_(receiver), type_index_(type_index)
-    {
-        for (size_t i = 0; i < senders.size(); ++i)
-        {
-            add_sender(*(senders.data() + i));
-        }
     }
 
     /**
@@ -91,8 +80,28 @@ public:
      * @param receiver receiver UID.
      * @param senders list of sender UIDs.
      */
-    __host__ Subscription(const gpu::cuda::UID &receiver, const std::vector<gpu::cuda::UID> &senders) :
-        receiver_(receiver)
+    __host__ Subscription(const core::UID &receiver, const std::unordered_set<core::UID, core::uid_hash> &senders,
+                          int type_index)
+                          : receiver_(receiver), type_index_(type_index)
+    {
+        SPDLOG_TRACE("Initializing with {} senders.", senders.size());
+        senders_ = senders;
+        SPDLOG_TRACE("Created a subscription with {} senders.", senders_.size());
+    }
+
+    /**
+     * @brief Convert a CPU subscription to a GPU one.
+     * @param cpu_subscription CPU-based subscription.
+     */
+    __host__ Subscription(const knp::core::MessageEndpoint::SubscriptionVariant &cpu_subscription);
+
+    /**
+     * @brief Subscription constructor.
+     * @param receiver receiver UID.
+     * @param senders list of sender UIDs.
+     */
+    __host__ Subscription(const core::UID &receiver, const std::vector<core::UID> &senders)
+        : receiver_(receiver)
     {
         SPDLOG_TRACE("Initializing with {} senders.", senders.size());
         for (const auto &sender : senders) add_sender(sender);
@@ -103,18 +112,18 @@ public:
      * @brief Get list of sender UIDs.
      * @return senders UIDs.
      */
-    [[nodiscard]] __device__ __host__ const UidSet &get_senders() const { return senders_; }
+    [[nodiscard]] __host__ const UidSet &get_senders() const { return senders_; }
 
     /**
      * @brief get message type for subscription.
      */
-     [[nodiscard]] __device__ __host__ int type() const { return type_index_; }
+    [[nodiscard]] __host__ int type() const { return type_index_; }
 
     /**
-      * @brief Get UID of the entity that receives messages via the subscription.
-      * @return UID.
-      */
-    [[nodiscard]] __device__ __host__ cuda::UID get_receiver_uid() const { return receiver_; }
+     * @brief Get UID of the entity that receives messages via the subscription.
+     * @return UID.
+     */
+    [[nodiscard]] __host__ core::UID get_receiver_uid() const { return receiver_; }
 
     /**
      * @brief Unsubscribe from a sender.
@@ -122,18 +131,9 @@ public:
      * @param uid sender UID.
      * @return true if sender was deleted from subscription.
      */
-    __device__ __host__ bool remove_sender(const cuda::UID &uid)
+    __host__ bool remove_sender(const core::UID &uid)
     {
-        for (uint64_t index = 0; index < senders_.size(); ++index)
-        {
-            if (senders_.copy_at(index) == uid)
-            {
-                auto iter = senders_.begin() + index;
-                senders_.erase(iter, iter + 1);
-                return true;
-            }
-        }
-        return false;
+        return senders_.erase(uid);
     }
 
     /**
@@ -142,10 +142,10 @@ public:
      * @param uid UID of the new sender.
      * @return true if sender added.
      */
-    __host__ __device__ bool add_sender(const cuda::UID &uid)
+    __host__ bool add_sender(const core::UID &uid)
     {
         if (has_sender(uid)) return false;
-        senders_.push_back(uid);
+        senders_.insert(uid);
         return true;
     }
 
@@ -154,12 +154,13 @@ public:
      * @param senders vector of sender UIDs.
      * @return number of senders added.
      */
-    __host__ __device__ size_t add_senders(const device_lib::CUDAVector<cuda::UID> &senders)
+    __host__ size_t add_senders(const std::vector<core::UID> &senders)
     {
         size_t result = 0;
-        for (size_t i = 0; i < senders.size(); ++i)
+        for (const auto &uid : senders)
         {
-            result += add_sender(senders.copy_at(i));
+            bool successfully_inserted = senders_.insert(uid).second;
+            result += static_cast<size_t>(successfully_inserted);
         }
         return result;
     }
@@ -169,73 +170,47 @@ public:
      * @param uid sender UID.
      * @return `true` if the sender with the given UID exists, `false` if the sender with the given UID doesn't exist.
      */
-    [[nodiscard]] __host__ __device__ bool has_sender(const cuda::UID &uid) const
+    [[nodiscard]] __host__ bool has_sender(const core::UID &uid) const
     {
-#if defined(__CUDA_ARCH__)
-        PRINTF_TRACE("Using has_sender on device\n");
-        for (size_t i = 0; i < senders_.size(); ++i)
-        {
-            if (senders_[i] == uid)
-            {
-                PRINTF_TRACE("Found sender\n");
-                return true;
-            }
-        }
-        PRINTF_TRACE("No sender found\n");
-        return false;
-#else
         if (senders_.size() == 0) return false;
-        int *d_result = nullptr;
-        cudaMalloc(&d_result, sizeof(int));
-        cudaMemset(d_result, 0, sizeof(int));
-        auto [num_blocks, num_threads] = device_lib::get_blocks_config(senders_.size());
-        const UID *senders_data = senders_.data();
-        device_lib::has_sender_kernel<<<num_blocks, num_threads>>>(uid, senders_data, senders_.size(), d_result);
-        cudaDeviceSynchronize();
-        int result;
-        cudaMemcpy(&result, d_result, sizeof(int), cudaMemcpyDeviceToHost);
-        cudaFree(d_result);
-        return result;
-#endif
+        return senders_.find(uid) != senders_.end();
     }
 
-    __host__ __device__ bool is_my_message(const MessageVariant &message)
+    /**
+     * @brief Check a message if it corresponds to the current subscription.
+     * @param message the message in question.
+     * @return true if the message has the correct type and its sender is in this subscription sender UID list.
+     */
+    __host__ bool is_my_message(const MessageVariant &message)
     {
         int message_type = message.index();
         if (message_type != type_index_) return false;
 
-        UID message_sender = ::cuda::std::visit([](const auto &msg) { return msg.header_.sender_uid_; },
-                                                message);
+        core::UID message_sender = ::cuda::std::visit([](const auto &msg) { return msg.header_.sender_uid_; }, message);
         return has_sender(message_sender);
     }
 
-    __host__ __device__ bool operator==(const Subscription &other) const
+    /**
+     * @brief Check if two subscriptions are equal.
+     * @param other the other subscription.
+     * @return true if the subscriptions are equal.
+     */
+    __host__ bool operator==(const Subscription &other) const
     {
-        return receiver_ == other.receiver_ && senders_ == other.senders_;
+        return receiver_ == other.receiver_ && senders_ == other.senders_ && type_index_ == other.type_index_;
     }
 
-    __host__ __device__ bool operator!=(const Subscription &other) const
+    __host__ bool operator!=(const Subscription &other) const
     {
         return !(*this == other);
     }
 
-public:
-    /**
-     * @brief Restore after shallow copying from device.
-     */
-    __host__ __device__ void actualize()
-    {
-    #ifndef __CUDA_ARCH__
-        SPDLOG_TRACE("Actualizing subscription senders");
-    #endif
-        senders_.actualize();
-    }
 
 private:
     /**
      * @brief Receiver UID.
      */
-    cuda::UID receiver_;
+    core::UID receiver_;
 
     /**
      * @brief Set of sender UIDs.
@@ -248,4 +223,4 @@ private:
     int type_index_;
 };
 
-} // namespace knp::backends::gpu::cuda
+}  // namespace knp::backends::gpu::cuda
