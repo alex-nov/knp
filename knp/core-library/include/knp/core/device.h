@@ -24,6 +24,7 @@
 #include <knp/core/types.h>
 
 #include <string>
+#include <utility>
 
 /**
  * @brief Core library namespace.
@@ -58,9 +59,21 @@ class Device
 {
 public:
     /**
+     * @brief Device constructor.
+     * @param uid device UID.
+     */
+    explicit Device(const UID &uid) : base_{uid, {}} {}
+    /**
+     * @brief Device move constructor.
+     * @param device device object to move.
+     */
+    explicit Device(Device &&device) : base_{std::move(device.base_)} {}
+    /**
      * @brief Device destructor.
      */
     virtual ~Device() = default;
+
+    Device(const Device &) = delete;
 
 public:
     /**

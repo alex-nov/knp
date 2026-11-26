@@ -33,7 +33,7 @@ namespace knp::devices::cpu
 {
 
 static constexpr const char* ns_uid = "0000-0000-0000-0000";
-
+static constexpr const char* uc_prefix = "Unknown CPU ";
 
 /**
  * @brief Fake power meter for unknown CPU.
@@ -46,14 +46,20 @@ public:
 };
 
 
-CPU::CPU(uint32_t cpu_num) : cpu_num_(cpu_num), power_meter_{std::make_unique<CpuPower>(cpu_num)}
+CPU::CPU(uint32_t cpu_num)
+    : Device(knp::core::UID(
+          boost::uuids::name_generator(core::UID(ns_uid))((uc_prefix + std::to_string(cpu_num)).c_str()))),
+      cpu_num_(cpu_num),
+      cpu_name_{uc_prefix + std::to_string(cpu_num)},
+      power_meter_{std::make_unique<CpuPower>(cpu_num)}
 {
-    cpu_name_ = "Unknown CPU " + std::to_string(cpu_num_);
-    Device::base_.uid_ = knp::core::UID(boost::uuids::name_generator(core::UID(ns_uid))(cpu_name_.c_str()));
 }
 
 
-CPU::CPU(CPU&& other) : cpu_num_{std::move(other.cpu_num_)}, cpu_name_{std::move(other.cpu_name_)} {}
+CPU::CPU(CPU&& other)
+    : Device(std::move(other)), cpu_num_{std::move(other.cpu_num_)}, cpu_name_{std::move(other.cpu_name_)}
+{
+}
 
 
 CPU::~CPU() {}
